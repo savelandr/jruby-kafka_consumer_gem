@@ -1,2 +1,4 @@
+== 1.1.0 / 10-12-15
+* Changed initialize to allow for overriding properties like auto.reset.offset, etc.  Added key, partition, offset info into messages instead of just the value.
 == 1.0.0 / 09-29-15
 * Initial release

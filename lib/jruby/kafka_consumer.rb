@@ -3,14 +3,14 @@ require 'jruby/kafka'
 class KafkaConsumer
   attr_reader :messages, :counter
 
-  def initialize(zookeeper, topic, key_deserializer = :string, value_deserializer = :string, schema_repo_url=nil)
+  def initialize(zookeeper, topic, key_deserializer, value_deserializer, opts={})
     @messages = []
     @counter = 0 #index of the first unread message
     @config = Java::JavaUtil::Properties.new
     @config['zookeeper.connect'] = zookeeper
-    @config['auto.offset.reset'] = 'largest'
-    @config['group.id'] = 'ruby_kafka_consumer'
-    set_deserializers(key_deserializer, value_deserializer, schema_repo_url)
+    @config['auto.offset.reset'] = opts['auto.offset.reset'] || 'largest'
+    @config['group.id'] = opts['group.id'] || 'ruby_kafka_consumer'
+    set_deserializers(key_deserializer, value_deserializer, opts['schema.registry.url'])
 
     @consumer = Java::KafkaConsumer::Consumer.createJavaConsumerConnector(Java::KafkaConsumer::ConsumerConfig.new @config)
     filter = Java::KafkaConsumer::Whitelist.new topic
@@ -37,7 +37,8 @@ class KafkaConsumer
   def get_reader_thread(iterator)
     Thread.new do
       while iterator.has_next?
-        @messages << iterator.next.message
+        entry = iterator.next
+        @messages << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
       end
     end
   end
@@ -45,7 +46,7 @@ class KafkaConsumer
 
   def set_deserializers(key_deserializer, value_deserializer, schema_repo_url)
     if key_deserializer.to_s == "avro" || value_deserializer.to_s == "avro"
-      raise ArgumentError, "schema_repo_url required with avro serializer" unless schema_repo_url
+      raise ArgumentError, "'schema.registry.url' option required with avro serializer" unless schema_repo_url
       @config['schema.registry.url'] = schema_repo_url
       if $DEBUG
         l = Java::OrgApacheLog4j::Logger.get_logger "io.confluent"
