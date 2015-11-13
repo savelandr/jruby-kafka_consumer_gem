@@ -60,7 +60,7 @@ class KafkaConsumer
     when :string, "string"
       @key_deserializer = Java::KafkaSerializer::StringDecoder.new nil
     when :byte_array, "byte_array"
-      @key_deserializer = Java::KafkaSerializer::DefaultDecoder.new
+      @key_deserializer = Java::KafkaSerializer::DefaultDecoder.new nil
     when :avro, "avro"
       require 'jruby/avro_serializer'
       @key_deserializer = Java::IoConfluentKafkaSerializers::KafkaAvroDecoder.new vconfig
@@ -72,7 +72,7 @@ class KafkaConsumer
     when :string, "string"
       @value_deserializer = Java::KafkaSerializer::StringDecoder.new nil
     when :byte_array, "byte_array"
-      @value_deserializer = Java::KafkaSerializer::DefaultDecoder.new
+      @value_deserializer = Java::KafkaSerializer::DefaultDecoder.new nil
     when :avro, "avro"
       require 'jruby/avro_serializer'
       @value_deserializer = Java::IoConfluentKafkaSerializers::KafkaAvroDecoder.new vconfig
