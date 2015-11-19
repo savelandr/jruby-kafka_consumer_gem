@@ -37,8 +37,14 @@ class KafkaConsumer
   def get_reader_thread(iterator)
     Thread.new do
       while iterator.has_next?
-        entry = iterator.next
-        @messages << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
+        begin
+          entry = iterator.next
+          @messages << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
+        rescue Java::OrgApacheKafkaCommonErrors::SerializationException => e
+          puts "Error reading message: #{e.message} => #{e.cause}"
+        rescue StandardError => e
+          puts "Error reading message: #{e.message}"
+        end
       end
     end
   end
