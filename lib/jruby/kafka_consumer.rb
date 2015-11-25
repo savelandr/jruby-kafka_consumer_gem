@@ -1,16 +1,19 @@
+gem 'jruby-kafka', "~> 0.8.2"
 require 'jruby/kafka'
 
 class KafkaConsumer
   attr_reader :messages, :counter
 
   def initialize(zookeeper, topic, key_deserializer, value_deserializer, opts={})
+    @mutex = Mutex.new
     @messages = []
     @counter = 0 #index of the first unread message
     @config = Java::JavaUtil::Properties.new
     @config['zookeeper.connect'] = zookeeper
-    @config['auto.offset.reset'] = opts['auto.offset.reset'] || 'largest'
-    @config['group.id'] = opts['group.id'] || 'ruby_kafka_consumer'
-    set_deserializers(key_deserializer, value_deserializer, opts['schema.registry.url'])
+    @config['auto.offset.reset'] = 'largest'
+    @config['group.id'] = "ruby_kafka_consumer_#{Time.now.to_i}"
+    opts.each {|k,v| @config[k] = v}
+    set_deserializers(key_deserializer, value_deserializer)
 
     @consumer = Java::KafkaConsumer::Consumer.createJavaConsumerConnector(Java::KafkaConsumer::ConsumerConfig.new @config)
     filter = Java::KafkaConsumer::Whitelist.new topic
@@ -21,17 +24,18 @@ class KafkaConsumer
 
   def get_message(timeout=60)
     start = Time.now
-    message = @messages[@counter]
+    message = nil
+    @mutex.synchronize {message = @messages[@counter]}
     while message.nil? && Time.now < (start + timeout)
       sleep 0.5
-      message = @messages[@counter]
+      @mutex.synchronize {message = @messages[@counter]}
     end
     @counter += 1 if message
     return message
   end
 
   def clear_all_messages
-    @counter = @messages.length
+    @mutex.synchronize {@counter = @messages.length}
   end
 
   def get_reader_thread(iterator)
@@ -39,7 +43,9 @@ class KafkaConsumer
       while iterator.has_next?
         begin
           entry = iterator.next
-          @messages << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
+          @mutex.synchronize do
+            @messages << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
+          end
         rescue Java::OrgApacheKafkaCommonErrors::SerializationException => e
           puts "Error reading message: #{e.message} => #{e.cause}"
         rescue StandardError => e
@@ -50,10 +56,9 @@ class KafkaConsumer
   end
   private :get_reader_thread
 
-  def set_deserializers(key_deserializer, value_deserializer, schema_repo_url)
+  def set_deserializers(key_deserializer, value_deserializer)
     if key_deserializer.to_s == "avro" || value_deserializer.to_s == "avro"
-      raise ArgumentError, "'schema.registry.url' option required with avro serializer" unless schema_repo_url
-      @config['schema.registry.url'] = schema_repo_url
+      raise ArgumentError, "'schema.registry.url' option required with avro serializer" unless @config['schema.registry.url']
       if $DEBUG
         l = Java::OrgApacheLog4j::Logger.get_logger "io.confluent"
         l.set_level(Java::OrgApacheLog4j::Level::DEBUG)
