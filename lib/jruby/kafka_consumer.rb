@@ -2,12 +2,10 @@ gem 'jruby-kafka', "~> 0.8.2"
 require 'jruby/kafka'
 
 class KafkaConsumer
-  attr_reader :messages, :counter
+  attr_reader :queue
 
   def initialize(zookeeper, topic, key_deserializer, value_deserializer, opts={})
-    @mutex = Mutex.new
-    @messages = []
-    @counter = 0 #index of the first unread message
+    @queue = Queue.new
     @config = Java::JavaUtil::Properties.new
     @config['zookeeper.connect'] = zookeeper
     @config['auto.offset.reset'] = 'largest'
@@ -25,17 +23,18 @@ class KafkaConsumer
   def get_message(timeout=60)
     start = Time.now
     message = nil
-    @mutex.synchronize {message = @messages[@counter]}
     while message.nil? && Time.now < (start + timeout)
-      sleep 0.5
-      @mutex.synchronize {message = @messages[@counter]}
+      begin
+        message = @queue.pop(true)
+      rescue ThreadError #standard queue exception when not blocking and empty
+        sleep 0.5
+      end
     end
-    @counter += 1 if message
     return message
   end
 
-  def clear_all_messages
-    @mutex.synchronize {@counter = @messages.length}
+  def clear_all_queue
+    @queue.clear
   end
 
   def get_reader_thread(iterator)
@@ -43,9 +42,7 @@ class KafkaConsumer
       while iterator.has_next?
         begin
           entry = iterator.next
-          @mutex.synchronize do
-            @messages << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
-          end
+          @queue << {value: entry.message, key: entry.key, offset: entry.offset, partition: entry.partition}
         rescue Java::OrgApacheKafkaCommonErrors::SerializationException => e
           puts "Error reading message: #{e.message} => #{e.cause}"
         rescue StandardError => e

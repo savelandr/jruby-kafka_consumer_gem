@@ -1,12 +1,17 @@
+== 1.3.0 / 12-10-15
+* change mutex to queue for simpler thread-safe solution, and messages are gone after consumption so it can handle streams of data if necessary
 == 1.2.1 / 11-24-15
 * explicit kafka version dependency
 == 1.2.0 / 11-24-15
-* messages is now thread-safe, consumer uses new group.id by default, any consumer config can be used as option instead of just group,schema,auto.offset
+* messages is now thread-safe
+* consumer uses new group.id by default
+* any consumer config can be used as option instead of just group,schema,auto.offset
 == 1.1.2 / 11-19-15
 * consumer will skip any messages that fail to deserialize
 == 1.1.1 / 11-13-15
 * fixed issue where byte_array deserializer wouldn't initialize
 == 1.1.0 / 10-12-15
-* Changed initialize to allow for overriding properties like auto.reset.offset, etc.  Added key, partition, offset info into messages instead of just the value.
+* Changed initialize to allow for overriding properties like auto.reset.offset, etc
+* Added key, partition, offset info into messages instead of just the value
 == 1.0.0 / 09-29-15
 * Initial release
