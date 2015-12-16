@@ -33,7 +33,7 @@ class KafkaConsumer
     return message
   end
 
-  def clear_all_queue
+  def clear_all_messages
     @queue.clear
   end
 
